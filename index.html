@@ -43,12 +43,27 @@
             }
         }
 
-        // 检查域名是否在白名单中 (优化版)
+        // 检查域名是否在白名单中 (改进版)
         function isDomainAllowed(url) {
             try {
                 const targetDomain = new URL(url).hostname;
-                return WHITELIST_DOMAINS.includes(targetDomain) || 
-                       WHITELIST_DOMAINS.some(d => targetDomain.endsWith(`.${d}`));
+                
+                // 精确匹配白名单中的域名
+                if (WHITELIST_DOMAINS.includes(targetDomain)) {
+                    return true;
+                }
+                
+                // 检查是否是白名单中主域名的子域名
+                return WHITELIST_DOMAINS.some(allowedDomain => {
+                    // 如果允许的是子域名，则不匹配主域名
+                    const isSubdomain = allowedDomain.split('.').length > 2;
+                    if (isSubdomain) {
+                        return false;
+                    }
+                    
+                    // 检查是否是主域名的子域名
+                    return targetDomain.endsWith(`.${allowedDomain}`);
+                });
             } catch {
                 return false;
             }
