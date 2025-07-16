@@ -43,28 +43,29 @@
             }
         }
 
-        // 检查域名是否在白名单中 (改进版)
+        // 检查域名是否在白名单中 (精确匹配版本)
         function isDomainAllowed(url) {
             try {
                 const targetDomain = new URL(url).hostname;
                 
-                // 精确匹配白名单中的域名
+                // 检查是否有精确匹配的域名
                 if (WHITELIST_DOMAINS.includes(targetDomain)) {
+                    console.log(`精确匹配成功: ${targetDomain}`);
                     return true;
                 }
                 
                 // 检查是否是白名单中主域名的子域名
                 return WHITELIST_DOMAINS.some(allowedDomain => {
-                    // 如果允许的是子域名，则不匹配主域名
-                    const isSubdomain = allowedDomain.split('.').length > 2;
-                    if (isSubdomain) {
-                        return false;
+                    // 如果允许的是顶级域名（如example.com），则允许所有子域名
+                    if (allowedDomain.split('.').length === 2) {
+                        return targetDomain.endsWith(`.${allowedDomain}`);
                     }
                     
-                    // 检查是否是主域名的子域名
-                    return targetDomain.endsWith(`.${allowedDomain}`);
+                    // 如果允许的是子域名（如sub.example.com），则只允许精确匹配
+                    return false;
                 });
-            } catch {
+            } catch (error) {
+                console.error('解析URL失败:', error);
                 return false;
             }
         }
@@ -79,9 +80,14 @@
             const encodedUrl = new URLSearchParams(location.search).get('u');
             const targetUrl = encodedUrl && safeAtob(encodedUrl);
             
+            // 添加调试日志
+            console.log('Encoded URL:', encodedUrl);
+            console.log('Decoded URL:', targetUrl);
+            
             // 快速验证必要条件
             if (!targetUrl || !/^https?:\/\//.test(targetUrl) || !isDomainAllowed(targetUrl)) {
-                errorMessage.textContent = `错误: 无效的访问链接`;
+                errorMessage.textContent = `错误: 无效的访问链接 (${targetUrl})`;
+                console.error('域名验证失败:', targetUrl);
                 return errorContainer.style.display = 'flex';
             }
             
@@ -105,7 +111,7 @@
             
             // 错误处理 (优化版)
             contentFrame.onerror = () => {
-                errorMessage.textContent = '错误: 无法加载该网站';
+                errorMessage.textContent = '错误: 无法加载该网站 (可能是由于跨域限制)';
                 errorContainer.style.display = 'flex';
             };
             
