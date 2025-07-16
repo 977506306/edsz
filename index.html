@@ -4,25 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>欢迎访问</title>
+    <!-- 预解析DNS -->
+    <link rel="dns-prefetch" href="https://g.alicdn.com">
+    <!-- CSP策略 -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; frame-src *; script-src 'self' 'unsafe-inline'">
 </head>
 <body>
-    <iframe id="contentFrame" style="width: 100%; height: 100vh; border: none;"></iframe>
+    <iframe id="contentFrame" style="width: 100%; height: 100vh; border: none;" loading="eager"></iframe>
 
     <script>
-        // 获取URL参数
+        // 缓存DOM引用
+        const contentFrame = document.getElementById('contentFrame');
+        
+        // 性能标记
+        performance.mark('scriptStart');
+
+        // URL参数解析（使用更高效的正则表达式）
         function getQueryParam(param) {
-            try {
-                const urlParams = new URLSearchParams(window.location.search);
-                return urlParams.get(param);
-            } catch (e) {
-                console.error('解析URL参数失败:', e);
-                return null;
-            }
+            const match = RegExp(`[?&]${param}=([^&]*)`).exec(window.location.search);
+            return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
         }
 
-        // 页面加载后执行
-        window.onload = function() {
+        // 使用DOMContentLoaded代替onload
+        document.addEventListener('DOMContentLoaded', function() {
             try {
+                performance.mark('domLoaded');
+                
                 // 获取并解码URL参数
                 const base64Url = getQueryParam('u');
                 
@@ -32,34 +39,50 @@
                 
                 // 解码并设置iframe源
                 const targetUrl = atob(base64Url);
-                document.getElementById('contentFrame').src = targetUrl;
+                
+                // 设置iframe源并添加加载监控
+                contentFrame.src = targetUrl;
+                
+                // 加载成功时记录时间
+                contentFrame.onload = () => {
+                    performance.mark('frameLoaded');
+                    performance.measure('frameLoadTime', 'domLoaded', 'frameLoaded');
+                    console.log(`iframe加载时间: ${performance.getEntriesByName('frameLoadTime')[0].duration}ms`);
+                };
                 
             } catch (error) {
                 console.error('加载内容时出错:', error);
-                // 错误处理（可选）
-                document.getElementById('contentFrame').srcdoc = `
-                    <div style="padding: 20px; font-family: Arial, sans-serif;">
-                        <h1>加载失败</h1>
-                        <p>错误信息: ${error.message}</p>
-                    </div>
-                `;
+                contentFrame.srcdoc = errorHtml(error.message);
             }
-        };
-    </script>
+        });
 
-    <!-- 淘宝跟踪脚本（保留但优化） -->
-    <script>
-        (function() {
-            try {
-                const script = document.createElement('script');
-                script.id = 'tb-beacon-aplus';
-                script.src = (location.protocol === 'https:' ? 'https:' : 'http:') + '//g.alicdn.com/alilog/mlog/aplus_v2.js';
-                script.setAttribute('exparams', 'category=&userid=&aplus&yunid=&&trid=ac11000117499818642894465e203b&asid=AQAAAAComk5oSAZDTgAAAAAtu5tFCJAbpA==');
-                document.body.insertBefore(script, document.body.firstChild);
-            } catch (e) {
-                console.error('加载淘宝跟踪脚本失败:', e);
-            }
-        })();
+        // 预编译错误模板
+        function errorHtml(message) {
+            return `
+                <style>
+                    .error-container {
+                        padding: 20px;
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                        text-align: center;
+                        max-width: 600px;
+                        margin: 50px auto;
+                    }
+                    .error-title {
+                        color: #d93025;
+                        font-size: 24px;
+                        margin-bottom: 15px;
+                    }
+                    .error-message {
+                        color: #5f6368;
+                        font-size: 16px;
+                    }
+                </style>
+                <div class="error-container">
+                    <div class="error-title">加载失败</div>
+                    <div class="error-message">错误信息: ${message}</div>
+                </div>
+            `;
+        }
     </script>
 </body>
 </html>
