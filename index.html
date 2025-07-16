@@ -34,40 +34,61 @@
             "qinm1.1.wanliwangluo.top" // 或仅允许特定子域名
         ];
 
-        // 安全解码Base64 (优化版)
+        // 安全解码Base64
         function safeAtob(encoded) {
             try {
+                // 替换URL安全字符并补全=
                 return atob(encoded.replace(/-/g, '+').replace(/_/g, '/').padEnd(encoded.length + (4 - encoded.length % 4) % 4, '='));
-            } catch {
+            } catch (e) {
+                console.error('Base64解码失败:', e);
                 return null;
             }
         }
 
-        // 检查域名是否在白名单中 (精确匹配版本)
-        function isDomainAllowed(url) {
+        // 解析URL并返回域名信息
+        function parseUrl(url) {
             try {
-                const targetDomain = new URL(url).hostname;
-                
-                // 检查是否有精确匹配的域名
-                if (WHITELIST_DOMAINS.includes(targetDomain)) {
-                    console.log(`精确匹配成功: ${targetDomain}`);
-                    return true;
-                }
-                
-                // 检查是否是白名单中主域名的子域名
-                return WHITELIST_DOMAINS.some(allowedDomain => {
-                    // 如果允许的是主域名（如example.com），则允许所有子域名
-                    if (allowedDomain.split('.').length === 2) {
-                        return targetDomain.endsWith(`.${allowedDomain}`);
-                    }
-                    
-                    // 如果允许的是子域名（如sub.example.com），则只允许精确匹配
-                    return false;
-                });
-            } catch (error) {
-                console.error('解析URL失败:', error);
-                return false;
+                const parsed = new URL(url);
+                return {
+                    protocol: parsed.protocol,
+                    hostname: parsed.hostname,
+                    port: parsed.port,
+                    pathname: parsed.pathname,
+                    search: parsed.search
+                };
+            } catch (e) {
+                console.error('解析URL失败:', e);
+                return null;
             }
+        }
+
+        // 检查域名是否在白名单中 (重构版)
+        function isDomainAllowed(url) {
+            const parsedUrl = parseUrl(url);
+            if (!parsedUrl) return false;
+            
+            const { hostname } = parsedUrl;
+            console.log(`正在验证域名: ${hostname}`);
+            
+            // 检查是否有精确匹配的域名
+            if (WHITELIST_DOMAINS.includes(hostname)) {
+                console.log(`✅ 精确匹配成功: ${hostname}`);
+                return true;
+            }
+            
+            // 检查是否是白名单中主域名的子域名
+            for (const allowedDomain of WHITELIST_DOMAINS) {
+                // 主域名配置 (如example.com) 允许所有子域名
+                if (allowedDomain.split('.').length === 2) {
+                    if (hostname.endsWith(`.${allowedDomain}`)) {
+                        console.log(`✅ 子域名匹配成功: ${hostname} → ${allowedDomain}`);
+                        return true;
+                    }
+                }
+            }
+            
+            console.log(`❌ 域名验证失败: ${hostname}`);
+            return false;
         }
 
         // 页面加载后执行
@@ -76,54 +97,74 @@
             const errorMessage = document.getElementById('errorMessage');
             const contentFrame = document.getElementById('contentFrame');
             
+            // 调试信息
+            console.log('=== 域名白名单配置 ===');
+            console.log(WHITELIST_DOMAINS);
+            
             // 从URL参数获取并解码目标URL
             const encodedUrl = new URLSearchParams(location.search).get('u');
+            console.log('编码后的URL:', encodedUrl);
+            
             const targetUrl = encodedUrl && safeAtob(encodedUrl);
+            console.log('解码后的URL:', targetUrl);
             
-            // 添加调试日志
-            console.log('Encoded URL:', encodedUrl);
-            console.log('Decoded URL:', targetUrl);
+            // 验证URL有效性
+            if (!targetUrl) {
+                errorMessage.textContent = '错误: 无效的URL编码';
+                console.error('无效的URL编码或缺少参数');
+                return errorContainer.style.display = 'flex';
+            }
             
-            // 快速验证必要条件
-            if (!targetUrl || !/^https?:\/\//.test(targetUrl) || !isDomainAllowed(targetUrl)) {
-                errorMessage.textContent = `错误: 无效的访问链接 (${targetUrl})`;
-                console.error('域名验证失败:', targetUrl);
+            // 验证URL格式
+            if (!/^https?:\/\//i.test(targetUrl)) {
+                errorMessage.textContent = '错误: 不支持的协议，仅支持HTTP/HTTPS';
+                console.error('不支持的协议:', targetUrl);
+                return errorContainer.style.display = 'flex';
+            }
+            
+            // 验证域名白名单
+            if (!isDomainAllowed(targetUrl)) {
+                errorMessage.textContent = `错误: 域名不在白名单内 (${parseUrl(targetUrl)?.hostname || '未知'})`;
+                console.error('域名不在白名单内:', targetUrl);
                 return errorContainer.style.display = 'flex';
             }
             
             // 预解析目标域名DNS
-            const link = document.createElement('link');
-            link.rel = 'dns-prefetch';
-            link.href = `//${new URL(targetUrl).hostname}`;
-            document.head.appendChild(link);
+            const dnsPrefetch = document.createElement('link');
+            dnsPrefetch.rel = 'dns-prefetch';
+            dnsPrefetch.href = `//${parseUrl(targetUrl).hostname}`;
+            document.head.appendChild(dnsPrefetch);
             
             // 设置iframe加载事件监听
             let loaded = false;
-            const showContent = () => {
+            
+            // 成功加载事件
+            contentFrame.onload = function() {
+                console.log('✅ iframe加载成功');
                 if (loaded) return;
                 loaded = true;
                 contentFrame.style.display = 'block';
                 errorContainer.style.display = 'none';
             };
             
-            // 成功加载事件
-            contentFrame.onload = showContent;
-            
-            // 错误处理 (优化版)
-            contentFrame.onerror = () => {
-                errorMessage.textContent = '错误: 无法加载该网站 (可能是由于跨域限制)';
+            // 错误处理
+            contentFrame.onerror = function() {
+                console.error('❌ iframe加载错误');
+                errorMessage.textContent = '错误: 无法加载该网站 (可能是由于跨域限制或网站配置)';
                 errorContainer.style.display = 'flex';
             };
             
-            // 超时处理 (增加到20秒)
+            // 超时处理 (增加到30秒)
             setTimeout(() => {
                 if (!loaded) {
-                    errorMessage.textContent = '错误: 加载超时';
+                    console.error('❌ iframe加载超时');
+                    errorMessage.textContent = '错误: 加载超时，请检查网站连接是否正常';
                     errorContainer.style.display = 'flex';
                 }
-            }, 20000);
+            }, 30000);
             
             // 开始加载iframe
+            console.log('开始加载iframe:', targetUrl);
             contentFrame.src = targetUrl;
         };
     </script>
