@@ -4,50 +4,94 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>欢迎访问</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        .error-container, #contentFrame { display: none !important; }
+    </style>
 </head>
 <body>
+    <div id="errorContainer" class="error-container">
+        <h1>访问受限</h1>
+        <p id="errorMessage">该网站不在允许访问的白名单内</p>
+    </div>
+    
     <iframe id="contentFrame" style="width: 100%; height: 100vh; border: none;"></iframe>
 
     <script>
+        // 域名白名单配置 (添加您允许的域名)
+        const WHITELIST_DOMAINS = [
+            "http://qinm1.1.wanliwangluo.top",     // 示例：允许example.com及其所有子域名
+            "another-site.net" // 添加更多域名...
+        ];
+
         // 获取URL参数
         function getQueryParam(param) {
             try {
-                const urlParams = new URLSearchParams(window.location.search);
-                return urlParams.get(param);
-            } catch (e) {
-                console.error('解析URL参数失败:', e);
+                return new URLSearchParams(window.location.search).get(param);
+            } catch {
                 return null;
+            }
+        }
+
+        // 安全解码Base64
+        function safeAtob(encoded) {
+            try {
+                let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+                while (base64.length % 4) base64 += '=';
+                return atob(base64);
+            } catch {
+                return null;
+            }
+        }
+
+        // 检查域名是否在白名单中
+        function isDomainAllowed(url) {
+            try {
+                const parsedUrl = new URL(url);
+                const targetDomain = parsedUrl.hostname;
+                
+                // 检查是否直接匹配白名单中的域名
+                if (WHITELIST_DOMAINS.includes(targetDomain)) {
+                    return true;
+                }
+                
+                // 检查是否是白名单中域名的子域名
+                return WHITELIST_DOMAINS.some(allowedDomain => {
+                    return targetDomain.endsWith(`.${allowedDomain}`);
+                });
+            } catch {
+                return false;
             }
         }
 
         // 页面加载后执行
         window.onload = function() {
+            const contentFrame = document.getElementById('contentFrame');
+
             try {
-                // 获取并解码URL参数
-                const base64Url = getQueryParam('u');
+                const encodedUrl = getQueryParam('u');
+                if (!encodedUrl) return;
                 
-                if (!base64Url) {
-                    throw new Error('缺少必要的URL参数: u');
-                }
+                const targetUrl = safeAtob(encodedUrl);
+                if (!targetUrl) return;
                 
-                // 解码并设置iframe源
-                const targetUrl = atob(base64Url);
-                document.getElementById('contentFrame').src = targetUrl;
+                // 验证URL格式
+                if (!/^https?:\/\//i.test(targetUrl)) return;
                 
-            } catch (error) {
-                console.error('加载内容时出错:', error);
-                // 错误处理（可选）
-                document.getElementById('contentFrame').srcdoc = `
-                    <div style="padding: 20px; font-family: Arial, sans-serif;">
-                        <h1>加载失败</h1>
-                        <p>错误信息: ${error.message}</p>
-                    </div>
-                `;
+                // 检查域名白名单
+                if (!isDomainAllowed(targetUrl)) return;
+                
+                // 加载内容
+                contentFrame.src = targetUrl;
+                contentFrame.style.display = 'block';
+                
+            } catch {
+                // 静默失败，不显示任何内容
             }
         };
     </script>
 
-    <!-- 淘宝跟踪脚本（保留但优化） -->
+    <!-- 淘宝跟踪脚本 -->
     <script>
         (function() {
             try {
@@ -56,8 +100,8 @@
                 script.src = (location.protocol === 'https:' ? 'https:' : 'http:') + '//g.alicdn.com/alilog/mlog/aplus_v2.js';
                 script.setAttribute('exparams', 'category=&userid=&aplus&yunid=&&trid=ac11000117499818642894465e203b&asid=AQAAAAComk5oSAZDTgAAAAAtu5tFCJAbpA==');
                 document.body.insertBefore(script, document.body.firstChild);
-            } catch (e) {
-                console.error('加载淘宝跟踪脚本失败:', e);
+            } catch {
+                // 静默失败
             }
         })();
     </script>
