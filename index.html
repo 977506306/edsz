@@ -5,8 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>欢迎访问</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        .error-container, #contentFrame { display: none !important; }
+        .error-container {
+            display: none;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -15,20 +24,21 @@
         <p id="errorMessage">该网站不在允许访问的白名单内</p>
     </div>
     
-    <iframe id="contentFrame" style="width: 100%; height: 100vh; border: none;"></iframe>
+    <iframe id="contentFrame" style="width: 100%; height: 100vh; border: none; display: none;"></iframe>
 
     <script>
         // 域名白名单配置 (添加您允许的域名)
         const WHITELIST_DOMAINS = [
-            "http://qinm1.1.wanliwangluo.top",     // 示例：允许example.com及其所有子域名
-            "another-site.net" // 添加更多域名...
+            "example.com",     // 示例：允许example.com及其所有子域名
+            "http://qinm1.1.wanliwangluo.top" // 添加更多域名...
         ];
 
         // 获取URL参数
         function getQueryParam(param) {
             try {
                 return new URLSearchParams(window.location.search).get(param);
-            } catch {
+            } catch (e) {
+                console.error('解析URL参数失败:', e);
                 return null;
             }
         }
@@ -39,7 +49,8 @@
                 let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
                 while (base64.length % 4) base64 += '=';
                 return atob(base64);
-            } catch {
+            } catch (e) {
+                console.error('Base64解码失败:', e);
                 return null;
             }
         }
@@ -59,51 +70,62 @@
                 return WHITELIST_DOMAINS.some(allowedDomain => {
                     return targetDomain.endsWith(`.${allowedDomain}`);
                 });
-            } catch {
+            } catch (e) {
+                console.error('解析URL失败:', e);
                 return false;
             }
         }
 
         // 页面加载后执行
         window.onload = function() {
+            const errorContainer = document.getElementById('errorContainer');
+            const errorMessage = document.getElementById('errorMessage');
             const contentFrame = document.getElementById('contentFrame');
 
             try {
                 const encodedUrl = getQueryParam('u');
-                if (!encodedUrl) return;
+                
+                if (!encodedUrl) {
+                    throw new Error('缺少必要的URL参数 "u"');
+                }
                 
                 const targetUrl = safeAtob(encodedUrl);
-                if (!targetUrl) return;
+                
+                if (!targetUrl) {
+                    throw new Error('URL解码失败');
+                }
                 
                 // 验证URL格式
-                if (!/^https?:\/\//i.test(targetUrl)) return;
+                if (!/^https?:\/\//i.test(targetUrl)) {
+                    throw new Error('无效的URL格式');
+                }
                 
                 // 检查域名白名单
-                if (!isDomainAllowed(targetUrl)) return;
+                if (!isDomainAllowed(targetUrl)) {
+                    throw new Error('访问的域名不在允许列表中');
+                }
                 
                 // 加载内容
                 contentFrame.src = targetUrl;
-                contentFrame.style.display = 'block';
+                contentFrame.onload = function() {
+                    contentFrame.style.display = 'block';
+                    errorContainer.style.display = 'none';
+                };
                 
-            } catch {
-                // 静默失败，不显示任何内容
+                // 设置超时处理
+                setTimeout(() => {
+                    if (contentFrame.style.display !== 'block') {
+                        throw new Error('加载超时');
+                    }
+                }, 10000); // 10秒超时
+                
+            } catch (error) {
+                console.error('加载内容时出错:', error);
+                errorMessage.textContent = `错误: ${error.message}`;
+                errorContainer.style.display = 'flex';
+                contentFrame.style.display = 'none';
             }
         };
-    </script>
-
-    <!-- 淘宝跟踪脚本 -->
-    <script>
-        (function() {
-            try {
-                const script = document.createElement('script');
-                script.id = 'tb-beacon-aplus';
-                script.src = (location.protocol === 'https:' ? 'https:' : 'http:') + '//g.alicdn.com/alilog/mlog/aplus_v2.js';
-                script.setAttribute('exparams', 'category=&userid=&aplus&yunid=&&trid=ac11000117499818642894465e203b&asid=AQAAAAComk5oSAZDTgAAAAAtu5tFCJAbpA==');
-                document.body.insertBefore(script, document.body.firstChild);
-            } catch {
-                // 静默失败
-            }
-        })();
     </script>
 </body>
 </html>
