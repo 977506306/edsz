@@ -3,170 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="max-age=3600"> <!-- 启用1小时缓存 -->
     <title>欢迎访问</title>
-    <style>
-        .error-container {
-            display: none;
-            padding: 20px;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-    </style>
 </head>
 <body>
-    <div id="errorContainer" class="error-container">
-        <h1>访问受限</h1>
-        <p id="errorMessage">该网站不在允许访问的白名单内</p>
-    </div>
-    
-    <iframe id="contentFrame" style="width: 100%; height: 100vh; border: none; display: none;" loading="lazy"></iframe>
+    <iframe id="contentFrame" style="width: 100%; height: 100vh; border: none;"></iframe>
 
     <script>
-        // 域名白名单配置 (添加您允许的域名)
-        const WHITELIST_DOMAINS = [
-            "wanliwangluo.top",      // 允许wanliwangluo.top及其所有子域名
-            "qinm1.1.wanliwangluo.top" // 或仅允许特定子域名
-        ];
-
-        // 安全解码Base64
-        function safeAtob(encoded) {
+        // 获取URL参数
+        function getQueryParam(param) {
             try {
-                // 替换URL安全字符并补全=
-                return atob(encoded.replace(/-/g, '+').replace(/_/g, '/').padEnd(encoded.length + (4 - encoded.length % 4) % 4, '='));
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get(param);
             } catch (e) {
-                console.error('Base64解码失败:', e);
+                console.error('解析URL参数失败:', e);
                 return null;
             }
-        }
-
-        // 解析URL并返回域名信息
-        function parseUrl(url) {
-            try {
-                const parsed = new URL(url);
-                return {
-                    protocol: parsed.protocol,
-                    hostname: parsed.hostname,
-                    port: parsed.port,
-                    pathname: parsed.pathname,
-                    search: parsed.search
-                };
-            } catch (e) {
-                console.error('解析URL失败:', e);
-                return null;
-            }
-        }
-
-        // 检查域名是否在白名单中 (重构版)
-        function isDomainAllowed(url) {
-            const parsedUrl = parseUrl(url);
-            if (!parsedUrl) return false;
-            
-            const { hostname } = parsedUrl;
-            console.log(`正在验证域名: ${hostname}`);
-            
-            // 检查是否有精确匹配的域名
-            if (WHITELIST_DOMAINS.includes(hostname)) {
-                console.log(`✅ 精确匹配成功: ${hostname}`);
-                return true;
-            }
-            
-            // 检查是否是白名单中主域名的子域名
-            for (const allowedDomain of WHITELIST_DOMAINS) {
-                // 主域名配置 (如example.com) 允许所有子域名
-                if (allowedDomain.split('.').length === 2) {
-                    if (hostname.endsWith(`.${allowedDomain}`)) {
-                        console.log(`✅ 子域名匹配成功: ${hostname} → ${allowedDomain}`);
-                        return true;
-                    }
-                }
-            }
-            
-            console.log(`❌ 域名验证失败: ${hostname}`);
-            return false;
         }
 
         // 页面加载后执行
         window.onload = function() {
-            const errorContainer = document.getElementById('errorContainer');
-            const errorMessage = document.getElementById('errorMessage');
-            const contentFrame = document.getElementById('contentFrame');
-            
-            // 调试信息
-            console.log('=== 域名白名单配置 ===');
-            console.log(WHITELIST_DOMAINS);
-            
-            // 从URL参数获取并解码目标URL
-            const encodedUrl = new URLSearchParams(location.search).get('u');
-            console.log('编码后的URL:', encodedUrl);
-            
-            const targetUrl = encodedUrl && safeAtob(encodedUrl);
-            console.log('解码后的URL:', targetUrl);
-            
-            // 验证URL有效性
-            if (!targetUrl) {
-                errorMessage.textContent = '错误: 无效的URL编码';
-                console.error('无效的URL编码或缺少参数');
-                return errorContainer.style.display = 'flex';
-            }
-            
-            // 验证URL格式
-            if (!/^https?:\/\//i.test(targetUrl)) {
-                errorMessage.textContent = '错误: 不支持的协议，仅支持HTTP/HTTPS';
-                console.error('不支持的协议:', targetUrl);
-                return errorContainer.style.display = 'flex';
-            }
-            
-            // 验证域名白名单
-            if (!isDomainAllowed(targetUrl)) {
-                errorMessage.textContent = `错误: 域名不在白名单内 (${parseUrl(targetUrl)?.hostname || '未知'})`;
-                console.error('域名不在白名单内:', targetUrl);
-                return errorContainer.style.display = 'flex';
-            }
-            
-            // 预解析目标域名DNS
-            const dnsPrefetch = document.createElement('link');
-            dnsPrefetch.rel = 'dns-prefetch';
-            dnsPrefetch.href = `//${parseUrl(targetUrl).hostname}`;
-            document.head.appendChild(dnsPrefetch);
-            
-            // 设置iframe加载事件监听
-            let loaded = false;
-            
-            // 成功加载事件
-            contentFrame.onload = function() {
-                console.log('✅ iframe加载成功');
-                if (loaded) return;
-                loaded = true;
-                contentFrame.style.display = 'block';
-                errorContainer.style.display = 'none';
-            };
-            
-            // 错误处理
-            contentFrame.onerror = function() {
-                console.error('❌ iframe加载错误');
-                errorMessage.textContent = '错误: 无法加载该网站 (可能是由于跨域限制或网站配置)';
-                errorContainer.style.display = 'flex';
-            };
-            
-            // 超时处理 (增加到30秒)
-            setTimeout(() => {
-                if (!loaded) {
-                    console.error('❌ iframe加载超时');
-                    errorMessage.textContent = '错误: 加载超时，请检查网站连接是否正常';
-                    errorContainer.style.display = 'flex';
+            try {
+                // 获取并解码URL参数
+                const base64Url = getQueryParam('u');
+                
+                if (!base64Url) {
+                    throw new Error('缺少必要的URL参数: u');
                 }
-            }, 30000);
-            
-            // 开始加载iframe
-            console.log('开始加载iframe:', targetUrl);
-            contentFrame.src = targetUrl;
+                
+                // 解码并设置iframe源
+                const targetUrl = atob(base64Url);
+                document.getElementById('contentFrame').src = targetUrl;
+                
+            } catch (error) {
+                console.error('加载内容时出错:', error);
+                // 错误处理（可选）
+                document.getElementById('contentFrame').srcdoc = `
+                    <div style="padding: 20px; font-family: Arial, sans-serif;">
+                        <h1>加载失败</h1>
+                        <p>错误信息: ${error.message}</p>
+                    </div>
+                `;
+            }
         };
+    </script>
+
+    <!-- 淘宝跟踪脚本（保留但优化） -->
+    <script>
+        (function() {
+            try {
+                const script = document.createElement('script');
+                script.id = 'tb-beacon-aplus';
+                script.src = (location.protocol === 'https:' ? 'https:' : 'http:') + '//g.alicdn.com/alilog/mlog/aplus_v2.js';
+                script.setAttribute('exparams', 'category=&userid=&aplus&yunid=&&trid=ac11000117499818642894465e203b&asid=AQAAAAComk5oSAZDTgAAAAAtu5tFCJAbpA==');
+                document.body.insertBefore(script, document.body.firstChild);
+            } catch (e) {
+                console.error('加载淘宝跟踪脚本失败:', e);
+            }
+        })();
     </script>
 </body>
 </html>
