@@ -29,8 +29,9 @@
     <script>
         // 域名白名单配置 (添加您允许的域名)
         const WHITELIST_DOMAINS = [
-            "example.com",     // 示例：允许example.com及其所有子域名
-            "http://qinm1.1.wanliwangluo.top" // 添加更多域名...
+            "example.com",     // 允许example.com及其所有子域名
+            "http://qinm1.1.wanliwangluo.top", // 仅允许sub.example.com，不允许example.com
+            "another-site.net" // 允许another-site.net及其所有子域名
         ];
 
         // 获取URL参数
@@ -55,19 +56,26 @@
             }
         }
 
-        // 检查域名是否在白名单中
+        // 检查域名是否在白名单中（改进版本）
         function isDomainAllowed(url) {
             try {
                 const parsedUrl = new URL(url);
                 const targetDomain = parsedUrl.hostname;
                 
-                // 检查是否直接匹配白名单中的域名
+                // 检查是否有精确匹配的域名（包括子域名）
                 if (WHITELIST_DOMAINS.includes(targetDomain)) {
                     return true;
                 }
                 
-                // 检查是否是白名单中域名的子域名
+                // 检查是否是白名单中主域名的子域名
                 return WHITELIST_DOMAINS.some(allowedDomain => {
+                    // 如果允许的域名是子域名（包含至少两个点），则不匹配主域名
+                    const isSubdomain = (allowedDomain.match(/\./g) || []).length >= 2;
+                    if (isSubdomain) {
+                        return false;
+                    }
+                    
+                    // 检查是否是主域名的子域名
                     return targetDomain.endsWith(`.${allowedDomain}`);
                 });
             } catch (e) {
