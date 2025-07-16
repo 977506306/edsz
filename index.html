@@ -56,7 +56,7 @@
                 
                 // 检查是否是白名单中主域名的子域名
                 return WHITELIST_DOMAINS.some(allowedDomain => {
-                    // 如果允许的是顶级域名（如example.com），则允许所有子域名
+                    // 如果允许的是主域名（如example.com），则允许所有子域名
                     if (allowedDomain.split('.').length === 2) {
                         return targetDomain.endsWith(`.${allowedDomain}`);
                     }
